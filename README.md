@@ -10,6 +10,6 @@ cmake ..
 make
 ./untitled1
 
-Summary: 61/101 tests passed
+Summary: 86/100 tests passed
 
 A lot to learn about C programming 

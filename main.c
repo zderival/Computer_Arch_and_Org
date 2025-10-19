@@ -1,156 +1,161 @@
+#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include <stdint.h>
 
-void div_convert(uint32_t n, int base, char *out);
-void sub_convert(uint32_t n, int base, char *out);
-void print_tables(uint32_t n);
+unsigned int SetBit(unsigned int value, int position);
+unsigned int ClearBit(unsigned int value, int position);
+unsigned int FlipBit(unsigned int value, int position);
+int BitVal(unsigned int value, int position);
+int CountBits(unsigned int value);
+unsigned int ShiftLeft(unsigned int value, int positions);
+unsigned int ShiftRight(unsigned int value, int positions);
+void PrintBinary(unsigned int value);
+void PrintHex(unsigned int value);
 
-void oct_to_bin(const char *oct, char *out);
-void oct_to_hex(const char *oct, char *out);
-void hex_to_bin(const char *oct, char *out);
+typedef struct {
+    unsigned int player1_pieces;
+    unsigned int player1_kings;
+    unsigned int player2_pieces;
+    unsigned int player2_kings;
+    int current_turn;
+} GameState;
 
-void to_sign_magnitude(int32_t n, char *out);
-void to_ones_complement(int32_t n, char *out);
-void to_twos_complement(int32_t n, char *out);
+void PrintBoard(GameState *game) {
+    int bit_index = 0;
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            if ((row + col) % 2 == 1) {
+                printf("  ");
+                continue;
+            }
+
+            if (BitVal(game->player1_kings, bit_index)) printf("R ");
+            else if (BitVal(game->player1_pieces, bit_index)) printf("r ");
+            else if (BitVal(game->player2_kings, bit_index)) printf("B ");
+            else if (BitVal(game->player2_pieces, bit_index)) printf("b ");
+            else printf(". ");
+
+            bit_index++;
+        }
+        printf("\n");
+    }
+}
+
+int RowColToBitIndex(int row, int col) {
+    if ((row + col) % 2 == 0) return -1;
+    return (row * 4) + (col / 2);
+}
+
+void MovePiece(GameState *game, int from_row, int from_col, int to_row, int to_col) {
+    int from = RowColToBitIndex(from_row, from_col);
+    int to = RowColToBitIndex(to_row, to_col);
+
+    if (from == -1 || to == -1) {
+        printf("Invalid square!\n");
+        return;
+    }
+
+    int row_diff = to_row - from_row;
+    int col_diff = to_col - from_col;
+
+    // Check if destination is empty
+    if (BitVal(game->player1_pieces | game->player2_pieces, to)) {
+        printf("That square is already occupied!\n");
+        return;
+    }
+
+    if (game->current_turn == 1) {
+        if (!BitVal(game->player1_pieces, from)) {
+            printf("No player 1 piece there!\n");
+            return;
+        }
+
+        // Capture
+        if (abs(row_diff) == 2 && abs(col_diff) == 2) {
+            int middle_row = (from_row + to_row) / 2;
+            int middle_col = (from_col + to_col) / 2;
+            int middle = RowColToBitIndex(middle_row, middle_col);
+            if (BitVal(game->player2_pieces, middle)) {
+                game->player2_pieces = FlipBit(game->player2_pieces, middle);
+                game->player2_kings  = FlipBit(game->player2_kings, middle);
+            } else {
+                printf("No opponent piece to capture!\n");
+                return;
+            }
+        }
+
+        game->player1_pieces = FlipBit(game->player1_pieces, from);
+        game->player1_pieces = SetBit(game->player1_pieces, to);
+
+        if (to_row == 7) {
+            game->player1_kings = SetBit(game->player1_kings, to);
+        }
+    } else {
+        if (!BitVal(game->player2_pieces, from)) {
+            printf("No player 2 piece there!\n");
+            return;
+        }
+
+
+        if (abs(row_diff) == 2 && abs(col_diff) == 2) {
+            int middle_row = (from_row + to_row) / 2;
+            int middle_col = (from_col + to_col) / 2;
+            int middle = RowColToBitIndex(middle_row, middle_col);
+            if (BitVal(game->player1_pieces, middle)) {
+                game->player1_pieces = FlipBit(game->player1_pieces, middle);
+                game->player1_kings  = FlipBit(game->player1_kings, middle);
+            } else {
+                printf("No opponent piece to capture!\n");
+                return;
+            }
+        }
+
+        game->player2_pieces = FlipBit(game->player2_pieces, from);
+        game->player2_pieces = SetBit(game->player2_pieces, to);
+
+        if (to_row == 0) {
+            game->player2_kings = SetBit(game->player2_kings, to);
+        }
+    }
+
+    game->current_turn = (game->current_turn == 1) ? 2 : 1;
+}
 
 int main(void) {
-    char out[65];
-    FILE *file = fopen("a2_test.txt", "r");
-    if (file == NULL) {
-        printf("File could not be open\n");
-        return 1;
-    }
+    GameState game;
 
-    char line[256];
-    int counter = 0;
-    int pass_counter = 0;
-    while (fgets(line,sizeof(line), file) != NULL) {
-        if (line[0] == '#' || line[0] == '\n') continue;
-        line[strcspn(line, "\n")] = '\0';
+    game.player1_pieces = 0;
+    game.player1_kings = 0;
+    game.player2_pieces = 0;
+    game.player2_kings = 0;
+    game.current_turn = 1;
 
-        if (strncmp(line, "div_convert", 11) == 0) {
-            int num, base;
-            char expected[65];
+    for (int i = 0; i <= 11; i++) game.player1_pieces = SetBit(game.player1_pieces, i);
+    for (int i = 20; i <= 31; i++) game.player2_pieces = SetBit(game.player2_pieces, i);
 
-            sscanf(line + 12, "%d %d %s", &num, &base, expected);
-            div_convert(num, base, out);
+    int from_row, from_col, to_row, to_col;
 
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: div_convert(%d, %d) -> Expected: %s, Got: %s [PASS]\n"
-                ,counter++, num, base,expected,out);
-                pass_counter++;
-            } else {
-                printf("Test %d: div_convert(%d, %d) -> Expected: %s, Got: %s [FAIL]\n"
-                ,counter++, num, base,expected,out);}
-
-        }
-        else if (strncmp(line, "sub_convert", 11) == 0) {
-            int num, base;
-            char expected[65];
-
-            sscanf(line + 12, "%d %d %s", &num, &base, expected);
-            sub_convert(num, base, out);
-
-            if (strcmp(out, expected) == 0){
-                printf("Test %d: sub_convert(%d, %d) -> Expected: %s, Got: %s [PASS]\n"
-                ,counter++, num, base,expected,out);
-                pass_counter++;
-            }else {
-                printf("Test %d: sub_convert(%d, %d) -> Expected: %s, Got: %s [FAIL]\n"
-                ,counter++, num, base,expected,out);
-            }
-        }
-        else if ((strncmp(line, "print_tables", 12) == 0)) {
-            int num;
-            sscanf(line + 13, "%d", &num);
-            printf("Test %d: print_tables(%d) -> [FORMATTED_OUTPUT] [PASS]\n", counter++, num);
-            pass_counter++;
+    while (1) {
+        PrintBoard(&game);
+        printf("\nPlayer %d, enter move (Example:2 3 2 1) : " , game.current_turn);
+        if (scanf("%d %d %d %d", &from_row, &from_col, &to_row, &to_col) != 4) {
+            printf("Invalid input. Exiting.\n");
+            break;
         }
 
-        else if (strncmp(line, "oct_to_bin", 10) == 0) {
-            char input[65], expected[65];
-            sscanf(line + 11, "%s %s", input, expected);
-            oct_to_bin(input, out);
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: oct_to_bin(%s) -> Expected: %s, Got: %s [PASS]\n",
-                    counter++, input, expected, out);
-                pass_counter++;
-            }else {
-                printf("Test %d: oct_to_bin(%s) -> Expected: %s, Got: %s [FAIL]\n",
-                    counter++, input, expected, out);
-            }
-        }
-        else if (strncmp(line, "oct_to_hex", 10) == 0) {
-            char input[65], expected[65];
-            sscanf(line + 11, "%s %s", input, expected);
-            oct_to_hex(input, out);
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: oct_to_hex(%s) -> Expected: %s, Got: %s [PASS]\n",
-                    counter++, input, expected, out);
-                pass_counter++;
-            } else {
-                printf("Test %d: oct_to_hex(%s) -> Expected: %s, Got: %s [FAIL]\n",
-                    counter++, input, expected, out); }
-        }
-        else if (strncmp(line, "hex_to_bin", 10) == 0) {
-            char input[65], expected[65];
-            sscanf(line + 11, "%s %s", input, expected);
-            hex_to_bin(input, out);
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: hex_to_bin(%s) -> Expected: %s, Got: %s [PASS]\n",
-                    counter++, input, expected, out);
-                pass_counter++;
-            } else {
-                printf("Test %d: hex_to_bin(%s) -> Expected: %s, Got: %s [FAIL]\n",
-                    counter++, input, expected, out);
-            }
-        }
+        MovePiece(&game, from_row, from_col, to_row, to_col);
 
-        else if (strncmp(line, "to_sign_magnitude", 17) == 0) {
-            int32_t num;
-            char expected[65];
-            sscanf(line + 18, "%d %s", &num, expected);
-            to_sign_magnitude(num, out);
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: to_sign_magnitude(%d) -> Expected: %s,\n Got: %s [PASS]\n",
-                    counter++, num, expected, out);
-                pass_counter++;
-            } else {
-                printf("Test %d: to_sign_magnitude(%d) -> Expected: %s,\n Got: %s [FAIL]\n",
-                    counter++, num, expected, out);
-            }
+
+        if (CountBits(game.player1_pieces) == 0) {
+            PrintBoard(&game);
+            printf("Player 2 wins!\n");
+            break;
         }
-        else if (strncmp(line, "to_ones_complement", 18) == 0) {
-            int32_t num;
-            char expected[65];
-            sscanf(line + 19, "%d %s", &num, expected);
-            to_ones_complement(num, out);
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: to_ones_complement(%d) -> Expected: %s,\n Got: %s [PASS]\n",
-                    counter++, num, expected, out);
-                pass_counter++;
-            } else {
-                printf("Test %d: to_ones_complement(%d) -> Expected: %s,\n Got: %s [FAIL]\n",
-                    counter++, num, expected, out);
-            }
-        }
-        else if (strncmp(line, "to_twos_complement", 18) == 0) {
-            int32_t num;
-            char expected[65];
-            sscanf(line + 19, "%d %s", &num, expected);
-            to_twos_complement(num, out);
-            if (strcmp(out, expected) == 0) {
-                printf("Test %d: to_twos_complement(%d) -> Expected: %s,\n Got: %s [PASS]\n",
-                    counter++, num, expected, out);
-                pass_counter++;
-            } else {
-                printf("Test %d: to_twos_complement(%d) -> Expected: %s,\n Got: %s [FAIL]\n",
-                    counter++, num, expected, out);
-            }
+        if (CountBits(game.player2_pieces) == 0) {
+            PrintBoard(&game);
+            printf("Player 1 wins!\n");
+            break;
         }
     }
-    fclose(file);
-    printf("Summary: %d/%d tests passed", pass_counter, counter);
+
     return 0;
 }

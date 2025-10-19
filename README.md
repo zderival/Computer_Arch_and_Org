@@ -11,8 +11,7 @@ This project implements a checkers game using bitboards in C. Each piece on the 
 - Two-player gameplay via console input
 
 
-## Gameplay Instructions
-
+## Gameplay Instrusctions 
 1. The board displays 8 rows and 8 columns. Only dark squares are playable.
 2. Pieces are represented as:
    - `r` = Player 1 regular piece  
